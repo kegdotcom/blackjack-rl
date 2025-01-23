@@ -12,7 +12,8 @@ class DQNAgent:
         self.experience = deque()
         self.env = env
         self.rewards = []
-        self.build_model()
+        self.build_qnet()
+        self.build_target_net()
 
         # Hyperparameters
         self.buffer_size = 2048
@@ -24,17 +25,31 @@ class DQNAgent:
         self.epsilon_decay = 0.99
         self.hidden_units = [8]
 
-    def build_model(self):
-        self.model = tf.keras.Sequential()
-        self.model.add(tf.keras.Input(
+    def build_qnet(self):
+        self.qnet = tf.keras.Sequential()
+        self.qnet.add(tf.keras.Input(
             shape=(self.env.state_size,), activation="relu"
         ))
-        for layer in range(len(self.hidden_units)):
-            self.model.add(tf.keras.layers.Dense(
-                self.hidden_units[layer], activation="relu"
+        for units in self.hidden_units:
+            self.qnet.add(tf.keras.layers.Dense(
+                units, activation="relu"
             ))
-        self.model.add(tf.keras.layers.Dense(
-            # technically no activation but consistency is cool
+        # technically no activation but consistency is cool
+        self.qnet.add(tf.keras.layers.Dense(
+            self.env.action_size, activation="linear"
+        ))
+
+    def build_target_net(self):
+        self.target_net = tf.keras.Sequential()
+        self.target_net.add(tf.keras.Input(
+            shape=(self.env.state_size,), activation="relu"
+        ))
+        for units in self.hidden_units:
+            self.target_net.add(tf.keras.layers.Dense(
+                units, activation="relu"
+            ))
+        # again, no activation on output layer
+        self.target_net.add(tf.keras.layers.Dense(
             self.env.action_size, activation="linear"
         ))
 
