@@ -42,6 +42,8 @@ class DQNAgent:
         network.add(tf.keras.layers.Dense(
             self.env.action_size, activation="linear"
         ))
+        network.compile(optimizer="", loss=self.loss_calc,
+                        metrics=["accuracy"])
         return network
 
     def loss_calc(self, y_true, y_pred):
