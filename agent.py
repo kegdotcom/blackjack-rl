@@ -18,11 +18,13 @@ class DQNAgent:
         self.epsilon = 1
         self.epsilon_decay = 0.99
         self.hidden_units = [8]
+        self.target_update_delay = 64
 
         self.buffer = deque(maxlen=self.buffer_size)
         self.env = env
         self.actions = []
-        self.rewards = []
+        self.avg_reward = 0
+        self.n_trains = 0
         self.qnet = self.create_network()
         self.target_net = self.create_network()
         self.target_net.set_weights(self.qnet.get_weights())
@@ -59,11 +61,16 @@ class DQNAgent:
 
     def qnet_predict(self, state, epsilon_greedy=True):
         # random actions only for now
-        if random.random() < self.epsilon:
+        if epsilon_greedy and random.random() < self.epsilon:
+            random_action = random.randint(0, self.env.action_size-1)
             self.epsilon *= self.epsilon_decay
-            return random.randint(0, self.env.action_size-1)
+            return random_action
         else:
-            return self.qnet.predict(state)
+            predicted_action = self.qnet.predict(state)
+            return tf.argmax(predicted_action)
+
+    def update_target_net(self):
+        self.target_net.set_weights(self.qnet.get_weights())
 
     def train(self):
         batch = self.sample_experience()  # [ ... (s, a, r, s', done) ... ]
@@ -85,9 +92,12 @@ class DQNAgent:
             output[i, a] = y
 
         self.qnet.fit(batch, output, batch_size=self.batch_size, epochs=10)
+        self.n_trains += 1
+        if self.n_trains % self.target_update_delay == 0:
+            self.update_target_net()
 
     def loop(self):
-        for ep in range(self.episodes):
+        for ep in range(1, self.episodes+1):
             s, done = self.env.get_state()
             i = 0
             ep_reward = 0
@@ -95,14 +105,18 @@ class DQNAgent:
                 i += 1
                 a = self.qnet_predict(s)
                 s, a, r, s_prime, done = self.env.step(a)
-                print(
-                    f"{ep}-{i}: (s: {s}, a: {a}, r: {r}, s_prime: {s_prime}, done?: {done})")
                 transition = (s, a, r, s_prime, done)
+                # print(f"{ep}-{i}: {transition}")
                 self.buffer.append(transition)
+
+                if len(self.buffer) > self.batch_size:
+                    self.train()
+
                 s = s_prime
                 ep_reward += r
             self.env.reset()
-            self.rewards.append(ep_reward)
-            if ep % 1e4 == 0:
-                print(f"Average reward after episode {
-                      ep}: {np.mean(self.rewards)}")
+            self.avg_reward *= (ep-1)
+            self.avg_reward += ep_reward
+            self.avg_reward /= ep
+            if ep % 1000 == 0:
+                print(f"avg rew - {ep}:{self.avg_reward}")
