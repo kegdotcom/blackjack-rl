@@ -7,7 +7,8 @@ def main():
     game = Blackjack()
     agent = DQNAgent(game)
 
-    agent.train()
+    load_from_checkpoint = False
+    agent.loop(load_from_checkpoint)
 
 
 if __name__ == "__main__":
