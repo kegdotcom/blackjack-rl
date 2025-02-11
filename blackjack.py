@@ -160,9 +160,10 @@ class Blackjack:
         for i in range(self.n_players):
             print(f"Player {i} has {" and ".join(self.get_hand(i))}")
 
-    def print_results(self, player=0):
-        print(f"You had {" and ".join(self.get_hand(player))}")
-        print(f"The dealer had {" and ".join(self.get_dealer_hand())}")
-        for i in range(self.n_players):
-            print(f"Player {i} received a reward of {
-                  self.get_player_reward(i)}")
+    def print_results(self):
+        dealer = self.dealer_hand
+        dealer_score = self.get_dealer_score()
+        player = self.player_hand
+        player_score = self.get_player_score()
+        print(
+            f"dealer: {dealer} ({dealer_score}) - player: {player} ({player_score})")

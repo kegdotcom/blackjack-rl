@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow import keras
 # from tf.keras import Sequential
 from collections import deque
 import random
@@ -106,47 +107,74 @@ class DQNAgent:
             output[i, a] = y
 
         self.qnet.fit(states, output, batch_size=self.batch_size,
-                      epochs=10, callbacks=[self.save_checkpoint], verbose=0)
+                      callbacks=[self.save_checkpoint], verbose=0)
 
         self.n_trains += 1
         if self.n_trains % self.target_update_delay == 0:
             self.update_target_net()
 
-    def loop(self, load_from_checkpoint=False):
+    def loop(self, train=False, load_from_checkpoint=True):
+        print(tf.config.list_physical_devices('GPU'))
         self.env.reset()
 
         if load_from_checkpoint:
             self.load_checkpoint()
 
-        for epoch in range(1, self.epochs+1):
-            for ep in range(1, self.episodes+1):
+        if train:
+            for epoch in range(1, self.epochs+1):
+                for ep in range(1, self.episodes+1):
+                    s, done = self.env.get_state()
+                    i = 0
+                    ep_reward = 0
+                    while not done:
+                        i += 1
+                        a = self.qnet_predict(s)
+                        s, a, r, s_prime, done = self.env.step(a)
+                        transition = (s, a, r, s_prime, done)
+                        # print(f"{ep}-{i}: {transition}")
+                        self.buffer.append(transition)
+
+                        if len(self.buffer) > self.batch_size:
+                            self.train()
+
+                        s = s_prime
+                        ep_reward += r
+                    self.env.reset()
+                    self.avg_reward *= (ep-1)
+                    self.avg_reward += ep_reward
+                    self.avg_reward /= ep
+                    if ep % 1000 == 0:
+                        print(f"avg rew - {ep}:{self.avg_reward}")
+                self.reward_tracker[epoch] = self.avg_reward
+                self.avg_reward = 0
+                # fig, ax = plt.subplots()
+                # ax.plot(self.reward_tracker)
+                # plt.savefig("plots/epoch-rewards.png")
+        else:
+            self.balance = 1000
+            self.n_wins = 0
+            self.n_losses = 0
+            self.n_ties = 0
+            while self.balance > 0:
+                self.env.reset()
                 s, done = self.env.get_state()
-                i = 0
-                ep_reward = 0
                 while not done:
-                    i += 1
                     a = self.qnet_predict(s)
                     s, a, r, s_prime, done = self.env.step(a)
-                    transition = (s, a, r, s_prime, done)
-                    # print(f"{ep}-{i}: {transition}")
-                    self.buffer.append(transition)
-
-                    if len(self.buffer) > self.batch_size:
-                        self.train()
-
-                    s = s_prime
-                    ep_reward += r
-                self.env.reset()
-                self.avg_reward *= (ep-1)
-                self.avg_reward += ep_reward
-                self.avg_reward /= ep
-                if ep % 1000 == 0:
-                    print(f"avg rew - {ep}:{self.avg_reward}")
-            self.reward_tracker[epoch] = self.avg_reward
-            self.avg_reward = 0
-            fig, ax = plt.subplots()
-            ax.plot(self.reward_tracker)
-            plt.savefig("plots/epoch-rewards.png")
+                    if r == self.env.illegal_reward:
+                        break
+                    elif done:
+                        self.balance += r
+                        if r < 0:
+                            self.n_losses += 1
+                        elif r > 0:
+                            self.n_wins += 1
+                        else:
+                            self.n_ties += 1
+                        self.env.print_results()
+                        print(f"new balance: {self.balance} with {self.n_wins} wins, {
+                              self.n_losses} losses, and {self.n_ties} ties")
+                        break
 
     def load_checkpoint(self):
         self.qnet.load_weights(self.checkpoint_path)
